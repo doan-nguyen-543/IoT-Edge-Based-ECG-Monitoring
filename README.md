@@ -30,12 +30,8 @@ Display        Alert
 | ------------------------ | -------- |
 | ESP32 Development Board  | 1        |
 | AD8232 ECG Sensor Module | 1        |
-| OLED Display             | 1        |
-| 220Ω Resistor            | 1        |
-| Buzzer (Optional)        | 1        |
-| Breadboard               | 1        |
+| Breadboard               | 2        |
 | Jumper Wires             | Several  |
-| ECG Electrodes           | 3        |
 | USB Cable                | 1        |
 
 ---
