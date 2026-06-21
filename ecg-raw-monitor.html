@@ -1,0 +1,603 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ECG · Raw Monitor</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #050a0a;
+    --panel: #0a1416;
+    --panel-border: #16292b;
+    --grid: #102b2e;
+    --trace: #35ffa0;
+    --trace-glow: rgba(53,255,160,0.45);
+    --warn: #ffb020;
+    --warn-glow: rgba(255,176,32,0.45);
+    --danger: #ff5c5c;
+    --text: #e7f3ef;
+    --text-muted: #5f8784;
+    --text-dim: #3c5c5a;
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body {
+    margin: 0;
+    padding: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'IBM Plex Mono', monospace;
+    min-height: 100vh;
+  }
+
+  body {
+    display: flex;
+    justify-content: center;
+    padding: 28px 18px 40px;
+  }
+
+  .device {
+    width: 100%;
+    max-width: 980px;
+    border: 1px solid var(--panel-border);
+    border-radius: 14px;
+    background: linear-gradient(180deg, #0b1718 0%, #060d0e 100%);
+    box-shadow: 0 30px 80px -40px rgba(0,0,0,0.8), inset 0 0 0 1px rgba(255,255,255,0.02);
+    overflow: hidden;
+  }
+
+  /* ---- header ---- */
+  header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 18px 22px;
+    border-bottom: 1px solid var(--panel-border);
+    flex-wrap: wrap;
+  }
+
+  .brand {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+  }
+
+  .brand h1 {
+    font-family: 'Space Grotesk', sans-serif;
+    font-weight: 700;
+    font-size: 19px;
+    letter-spacing: 0.06em;
+    margin: 0;
+    color: var(--text);
+  }
+
+  .brand .dot { color: var(--trace); }
+
+  .brand .eyebrow {
+    font-size: 11px;
+    letter-spacing: 0.12em;
+    color: var(--text-muted);
+    text-transform: uppercase;
+  }
+
+  .controls {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  button {
+    font-family: 'Space Grotesk', sans-serif;
+    font-weight: 600;
+    font-size: 12.5px;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    border-radius: 8px;
+    padding: 10px 16px;
+    cursor: pointer;
+    border: 1px solid var(--panel-border);
+    background: #0d1a1c;
+    color: var(--text);
+    transition: border-color 0.15s, color 0.15s, background 0.15s;
+  }
+
+  button:hover:not(:disabled) { border-color: var(--trace); color: var(--trace); }
+  button:focus-visible { outline: 2px solid var(--trace); outline-offset: 2px; }
+  button:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  #connectBtn.is-connected {
+    border-color: var(--trace);
+    color: #04140d;
+    background: var(--trace);
+    box-shadow: 0 0 16px var(--trace-glow);
+  }
+
+  #demoBtn { background: transparent; color: var(--text-muted); font-size: 11.5px; }
+  #demoBtn.is-active { color: var(--warn); border-color: var(--warn); }
+
+  /* ---- status line ---- */
+  .statusline {
+    padding: 8px 22px;
+    font-size: 11.5px;
+    color: var(--text-dim);
+    border-bottom: 1px solid var(--panel-border);
+    min-height: 16px;
+  }
+  .statusline.warn { color: var(--warn); }
+  .statusline.err { color: var(--danger); }
+
+  /* ---- scope ---- */
+  .scope-wrap {
+    position: relative;
+    height: 320px;
+    background: var(--bg);
+  }
+  canvas#scope { display: block; width: 100%; height: 100%; }
+
+  .scope-overlay {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    color: var(--text-dim);
+    font-size: 13px;
+    line-height: 1.7;
+    padding: 0 30px;
+  }
+  .scope-overlay.hidden { display: none; }
+  .scope-overlay strong { color: var(--text-muted); font-family: 'Space Grotesk', sans-serif; }
+
+  /* ---- tiles ---- */
+  .tiles {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    border-top: 1px solid var(--panel-border);
+  }
+  .tile {
+    padding: 14px 18px 16px;
+    border-right: 1px solid var(--panel-border);
+  }
+  .tile:last-child { border-right: none; }
+  .tile .label {
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 10.5px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    margin-bottom: 6px;
+  }
+  .tile .value {
+    font-size: 22px;
+    font-weight: 500;
+    color: var(--text);
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
+  }
+  .tile .unit { font-size: 11px; color: var(--text-muted); }
+
+  .lead-dot {
+    width: 9px; height: 9px; border-radius: 50%;
+    background: var(--trace);
+    box-shadow: 0 0 8px var(--trace-glow);
+    display: inline-block;
+    margin-right: 7px;
+  }
+  .lead-dot.off {
+    background: var(--warn);
+    box-shadow: 0 0 8px var(--warn-glow);
+    animation: pulse 1s infinite;
+  }
+  @keyframes pulse { 0%,100%{opacity:1;} 50%{opacity:0.35;} }
+
+  footer {
+    padding: 12px 22px 16px;
+    font-size: 11px;
+    color: var(--text-dim);
+    border-top: 1px solid var(--panel-border);
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+  footer a { color: var(--text-muted); text-decoration: none; border-bottom: 1px dotted var(--text-dim); }
+  footer a:hover { color: var(--trace); }
+
+  @media (max-width: 640px) {
+    .tiles { grid-template-columns: repeat(2, 1fr); }
+    .tile:nth-child(2) { border-right: none; }
+    .tile { border-bottom: 1px solid var(--panel-border); }
+    .scope-wrap { height: 240px; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .lead-dot.off { animation: none; }
+  }
+</style>
+</head>
+<body>
+
+<div class="device">
+  <header>
+    <div class="brand">
+      <h1><span class="dot">●</span> ECG · RAW</h1>
+      <span class="eyebrow">Analog in · 250&nbsp;Hz · 115200&nbsp;baud</span>
+    </div>
+    <div class="controls">
+      <button id="demoBtn" type="button">Preview demo waveform</button>
+      <button id="connectBtn" type="button">⏻ Connect device</button>
+    </div>
+  </header>
+
+  <div id="statusline" class="statusline">Plug in the ESP32 over USB, then press Connect device and pick its serial port.</div>
+
+  <div class="scope-wrap">
+    <canvas id="scope"></canvas>
+    <div id="scopeOverlay" class="scope-overlay">
+      <div>No signal yet.<br><strong>Connect device</strong> or run the demo waveform to see the trace.</div>
+    </div>
+  </div>
+
+  <div class="tiles">
+    <div class="tile">
+      <div class="label">Raw value</div>
+      <div class="value"><span id="tileValue">—</span><span class="unit">/ 4095</span></div>
+    </div>
+    <div class="tile">
+      <div class="label">Heart Rate</div>
+      <div class="value">
+        <span id="tileBPM">0</span>
+        <span class="unit">BPM</span>
+      </div>
+    </div>
+    <div class="tile">
+      <div class="label">Lead status</div>
+      <div class="value"><span class="lead-dot" id="leadDot"></span><span id="tileLead">No data</span></div>
+    </div>
+    <div class="tile">
+      <div class="label">Samples received</div>
+      <div class="value"><span id="tileSamples">0</span></div>
+    </div>
+  </div>
+
+  <footer>
+    <span>Web Serial API requires Chrome or Edge on desktop.</span>
+    <span>Firmware: <code>firmware/ecg_raw/ecg_raw.ino</code></span>
+  </footer>
+</div>
+
+<script>
+(function () {
+  const canvas = document.getElementById('scope');
+  const ctx = canvas.getContext('2d');
+  const scopeOverlay = document.getElementById('scopeOverlay');
+  const statusline = document.getElementById('statusline');
+  const connectBtn = document.getElementById('connectBtn');
+  const demoBtn = document.getElementById('demoBtn');
+  const tileValue = document.getElementById('tileValue');
+  const tileBPM = document.getElementById('tileBPM');
+  const tileLead = document.getElementById('tileLead');
+  const tileSamples = document.getElementById('tileSamples');
+  const leadDot = document.getElementById('leadDot');
+
+  const GAP = 4;            // erase-gap width ahead of the sweep pen, in columns
+  const SUPPORTS_SERIAL = 'serial' in navigator;
+
+  let dpr = window.devicePixelRatio || 1;
+  let buf = null, bufferLen = 0, writeIdx = 0;
+  let totalSamples = 0, samplesSinceRateCheck = 0, currentRate = 0, lastRateCheck = performance.now();
+  let leadOff = false, hasData = false;
+
+  let port = null, reader = null, readableStreamClosed = null, keepReading = false, connecting = false;
+  let demoTimer = null, demoSampleIndex = 0;
+
+  function setStatus(msg, kind) {
+    statusline.textContent = msg;
+    statusline.className = 'statusline' + (kind ? ' ' + kind : '');
+  }
+
+  // ---------- canvas / sweep buffer ----------
+  function resizeCanvas() {
+    const rect = canvas.parentElement.getBoundingClientRect();
+    dpr = window.devicePixelRatio || 1;
+    canvas.width = Math.max(1, Math.floor(rect.width * dpr));
+    canvas.height = Math.max(1, Math.floor(rect.height * dpr));
+    const newLen = Math.max(120, Math.floor(rect.width));
+    const fresh = new Float32Array(newLen).fill(NaN);
+    buf = fresh;
+    bufferLen = newLen;
+    writeIdx = 0;
+  }
+  window.addEventListener('resize', resizeCanvas);
+  resizeCanvas();
+
+  function pushSample(value) {
+    if (!buf) return;
+    hasData = true;
+    buf[writeIdx] = value;
+    for (let g = 1; g <= GAP; g++) buf[(writeIdx + g) % bufferLen] = NaN;
+    writeIdx = (writeIdx + 1) % bufferLen;
+    totalSamples++;
+    samplesSinceRateCheck++;
+  }
+
+  function drawGrid(w, h) {
+    ctx.strokeStyle = getComputedStyle(document.documentElement).getPropertyValue('--grid');
+    ctx.lineWidth = 1;
+    const stepX = 40 * dpr, stepY = 36 * dpr;
+    ctx.beginPath();
+    for (let x = 0; x < w; x += stepX) { ctx.moveTo(x, 0); ctx.lineTo(x, h); }
+    for (let y = 0; y < h; y += stepY) { ctx.moveTo(0, y); ctx.lineTo(w, y); }
+    ctx.stroke();
+  }
+
+  function render() {
+    requestAnimationFrame(render);
+
+    // sample-rate readout, refreshed once a second
+    const now = performance.now();
+    if (now - lastRateCheck >= 1000) {
+      currentRate = samplesSinceRateCheck / ((now - lastRateCheck) / 1000);
+      samplesSinceRateCheck = 0;
+      lastRateCheck = now;
+      tileSamples.textContent = totalSamples.toLocaleString();
+    }
+
+    if (!buf) return;
+    const w = canvas.width, h = canvas.height;
+    ctx.clearRect(0, 0, w, h);
+    drawGrid(w, h);
+
+    if (!hasData) return;
+    scopeOverlay.classList.add('hidden');
+
+    let mn = Infinity, mx = -Infinity;
+    for (let i = 0; i < bufferLen; i++) {
+      const v = buf[i];
+      if (!Number.isNaN(v)) { if (v < mn) mn = v; if (v > mx) mx = v; }
+    }
+    if (mn === Infinity) return;
+    if (mx - mn < 20) mx = mn + 20;
+    const pad = (mx - mn) * 0.18;
+    mn -= pad; mx += pad;
+
+    const colW = w / bufferLen;
+    const traceColor = leadOff ? '#ffb020' : '#35ffa0';
+    const glow = leadOff ? 'rgba(255,176,32,0.55)' : 'rgba(53,255,160,0.55)';
+
+    ctx.save();
+    ctx.lineWidth = 2 * dpr;
+    ctx.lineJoin = 'round';
+    ctx.strokeStyle = traceColor;
+    ctx.shadowColor = glow;
+    ctx.shadowBlur = 9 * dpr;
+    ctx.beginPath();
+    let drawing = false;
+    for (let x = 0; x < bufferLen; x++) {
+      const v = buf[x];
+      if (Number.isNaN(v)) { drawing = false; continue; }
+      const y = h - ((v - mn) / (mx - mn)) * h;
+      if (!drawing) { ctx.moveTo(x * colW, y); drawing = true; }
+      else { ctx.lineTo(x * colW, y); }
+    }
+    ctx.stroke();
+    ctx.restore();
+
+    // sweep pen cursor
+    const cursorX = writeIdx * colW;
+    ctx.save();
+    ctx.strokeStyle = 'rgba(255,255,255,0.5)';
+    ctx.lineWidth = 1.5 * dpr;
+    ctx.beginPath();
+    ctx.moveTo(cursorX, 0);
+    ctx.lineTo(cursorX, h);
+    ctx.stroke();
+    ctx.restore();
+  }
+  requestAnimationFrame(render);
+
+  function handleSample(value) {
+    leadOff = (value === 0);
+    tileValue.textContent = value.toFixed(1);
+    leadDot.classList.toggle('off', leadOff);
+    tileLead.textContent = leadOff ? 'Lead off' : 'OK';
+    pushSample(value);
+  }
+
+  function handleLine(rawLine)
+{
+    const line = rawLine.trim();
+
+    if (!line.includes(","))
+        return;
+
+    const parts = line.split(",");
+
+    if (parts.length < 4)
+        return;
+
+    const filtered = parseFloat(parts[1]);
+
+    const bpm = parseFloat(parts[3]) / 10.0;
+
+    if (Number.isNaN(filtered))
+        return;
+
+    tileBPM.textContent = bpm.toFixed(0);
+
+    handleSample(filtered);
+}
+
+  // ---------- Web Serial ----------
+  async function connectSerial() {
+    if (!SUPPORTS_SERIAL) {
+      setStatus('This browser does not support Web Serial. Open this page in Chrome or Edge on desktop.', 'err');
+      return;
+    }
+    if (connecting) return;
+    connecting = true;
+    stopDemo();
+    connectBtn.disabled = true;
+    connectBtn.textContent = 'CONNECTING…';
+    try {
+      port = await navigator.serial.requestPort();
+      await port.open({ baudRate: 115200 });
+      keepReading = true;
+      connectBtn.classList.add('is-connected');
+      connectBtn.textContent = '● Disconnect';
+      setStatus('Connected. Reading raw ECG samples…');
+      port.addEventListener('disconnect', () => {
+        setStatus('Device unplugged.', 'warn');
+        resetConnectionUI();
+      });
+      readLoop();
+    } catch (err) {
+      if (err && err.name !== 'NotFoundError') {
+        setStatus('Connection failed: ' + err.message, 'err');
+      } else {
+        setStatus('No port selected.');
+      }
+      resetConnectionUI();
+    } finally {
+      connecting = false;
+    }
+  }
+
+  // ESP32 boards reset on port-open (DTR/RTS pulses EN), and the ROM
+  // bootloader briefly logs at 74880 baud before the sketch's own
+  // Serial.begin(115200) kicks in. Read at 115200 during that window and
+  // the OS reports a framing/parity error. That's transient, not fatal, so
+  // this loop gets a fresh reader and keeps going instead of dropping the
+  // connection. Only if errors keep recurring do we give up for real.
+  async function readLoop() {
+    let consecutiveErrors = 0;
+    let lastErrorTime = 0;
+
+    while (keepReading && port && port.readable) {
+      let lineBuffer = '';
+      try {
+        const textDecoder = new TextDecoderStream();
+        readableStreamClosed = port.readable.pipeTo(textDecoder.writable).catch(() => {});
+        reader = textDecoder.readable.getReader();
+
+        while (keepReading) {
+          const { value, done } = await reader.read();
+          if (done) { keepReading = false; break; }
+          if (value) {
+            lineBuffer += value;
+            const parts = lineBuffer.split('\n');
+            lineBuffer = parts.pop();
+            for (const part of parts) handleLine(part);
+          }
+          if (consecutiveErrors > 0) {
+            consecutiveErrors = 0;
+            setStatus('Connected. Reading raw ECG samples…');
+          }
+        }
+      } catch (err) {
+        if (!keepReading) break;
+        const now = performance.now();
+        consecutiveErrors = (now - lastErrorTime < 2000) ? consecutiveErrors + 1 : 1;
+        lastErrorTime = now;
+
+        if (consecutiveErrors >= 6) {
+          setStatus('Read error: ' + err.message + ' — connection unstable, disconnecting.', 'err');
+          await teardown();
+          break;
+        }
+        setStatus('Brief read glitch (' + err.message + ') — recovering…', 'warn');
+        await new Promise((r) => setTimeout(r, 30));
+      } finally {
+        try { reader.releaseLock(); } catch (e) {}
+      }
+    }
+  }
+
+  async function teardown() {
+    keepReading = false;
+    if (reader) { try { await reader.cancel(); } catch (e) {} }
+    if (readableStreamClosed) { await readableStreamClosed.catch(() => {}); }
+    if (port) { try { await port.close(); } catch (e) {} }
+    port = null;
+    resetConnectionUI();
+  }
+
+  async function disconnectSerial() {
+    await teardown();
+    setStatus('Disconnected.');
+  }
+
+  function resetConnectionUI() {
+    connectBtn.disabled = false;
+    connectBtn.classList.remove('is-connected');
+    connectBtn.textContent = '⏻ Connect device';
+  }
+
+  connectBtn.addEventListener('click', () => {
+    if (connectBtn.classList.contains('is-connected')) disconnectSerial();
+    else connectSerial();
+  });
+
+  // ---------- demo waveform (synthetic, for previewing the UI only) ----------
+  function syntheticBeat(phase) {
+    function bump(x, mu, sigma, amp) {
+      const d = (x - mu) / sigma;
+      return amp * Math.exp(-0.5 * d * d);
+    }
+    let v = 0;
+    v += bump(phase, 0.16, 0.022, 0.12);   // P wave
+    v += bump(phase, 0.30, 0.007, -0.20);  // Q
+    v += bump(phase, 0.32, 0.009, 1.0);    // R spike
+    v += bump(phase, 0.34, 0.009, -0.30);  // S
+    v += bump(phase, 0.55, 0.05, 0.22);    // T wave
+    return v;
+  }
+
+  function startDemo() {
+    if (port) return; // real device takes priority
+    demoSampleIndex = 0;
+    demoBtn.classList.add('is-active');
+    demoBtn.textContent = 'Stop demo waveform';
+    setStatus('Showing a synthetic demo waveform (not real sensor data).', 'warn');
+    leadOff = false;
+    leadDot.classList.remove('off');
+    tileLead.textContent = 'Demo';
+    const beatSamples = 250; // ~60 bpm at 250 Hz
+    demoTimer = setInterval(() => {
+      const phase = (demoSampleIndex % beatSamples) / beatSamples;
+      const noise = (Math.random() - 0.5) * 0.02;
+      const v = Math.round(1750 + (syntheticBeat(phase) + noise) * 900);
+      const clamped = Math.max(0, Math.min(4095, v));
+      tileValue.textContent = clamped;
+      pushSample(clamped);
+      demoSampleIndex++;
+    }, 4); // ~250 Hz
+  }
+
+  function stopDemo() {
+    if (demoTimer) { clearInterval(demoTimer); demoTimer = null; }
+    demoBtn.classList.remove('is-active');
+    demoBtn.textContent = 'Preview demo waveform';
+  }
+
+  demoBtn.addEventListener('click', () => {
+    if (demoTimer) { stopDemo(); setStatus('Demo stopped.'); }
+    else startDemo();
+  });
+
+  if (!SUPPORTS_SERIAL) {
+    setStatus('This browser does not support Web Serial. Open this page in Chrome or Edge on desktop — the demo waveform button still works anywhere.', 'warn');
+  }
+})();
+</script>
+
+</body>
+</html>

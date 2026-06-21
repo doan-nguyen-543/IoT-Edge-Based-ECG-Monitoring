@@ -140,17 +140,6 @@ void setup()
 
 void loop()
 {
-  // Lead Off Detection
-
-  //if (digitalRead(LO_PLUS) == HIGH ||
-    //  digitalRead(LO_MINUS) == HIGH)
-  //{
-    //Serial.println("Lead Off!");
-    //delay(100);
-    //return;
-  //}
-  Serial.println(analogRead(36));
-
   // Raw ECG
 
   int raw = analogRead(ECG_PIN);
@@ -182,5 +171,5 @@ void loop()
 
   Serial.println(bpm * 10);
 
-  delay(1000);   // 250 Hz
+  delay(100);   // 250 Hz
 }
