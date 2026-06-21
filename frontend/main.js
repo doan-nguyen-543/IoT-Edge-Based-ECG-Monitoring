@@ -1,280 +1,3 @@
-<!DOCTYPE html>
-<html lang="vi">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>ECG · Raw Monitor</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
-<style>
-  :root {
-    --bg: #050a0a;
-    --panel: #0a1416;
-    --panel-border: #16292b;
-    --grid: #102b2e;
-    --trace: #35ffa0;
-    --trace-glow: rgba(53,255,160,0.45);
-    --warn: #ffb020;
-    --warn-glow: rgba(255,176,32,0.45);
-    --danger: #ff5c5c;
-    --text: #e7f3ef;
-    --text-muted: #5f8784;
-    --text-dim: #3c5c5a;
-  }
-
-  * { box-sizing: border-box; }
-
-  html, body {
-    margin: 0;
-    padding: 0;
-    background: var(--bg);
-    color: var(--text);
-    font-family: 'IBM Plex Mono', monospace;
-    min-height: 100vh;
-  }
-
-  body {
-    display: flex;
-    justify-content: center;
-    padding: 28px 18px 40px;
-  }
-
-  .device {
-    width: 100%;
-    max-width: 980px;
-    border: 1px solid var(--panel-border);
-    border-radius: 14px;
-    background: linear-gradient(180deg, #0b1718 0%, #060d0e 100%);
-    box-shadow: 0 30px 80px -40px rgba(0,0,0,0.8), inset 0 0 0 1px rgba(255,255,255,0.02);
-    overflow: hidden;
-  }
-
-  /* ---- header ---- */
-  header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 16px;
-    padding: 18px 22px;
-    border-bottom: 1px solid var(--panel-border);
-    flex-wrap: wrap;
-  }
-
-  .brand {
-    display: flex;
-    align-items: baseline;
-    gap: 10px;
-  }
-
-  .brand h1 {
-    font-family: 'Space Grotesk', sans-serif;
-    font-weight: 700;
-    font-size: 19px;
-    letter-spacing: 0.06em;
-    margin: 0;
-    color: var(--text);
-  }
-
-  .brand .dot { color: var(--trace); }
-
-  .brand .eyebrow {
-    font-size: 11px;
-    letter-spacing: 0.12em;
-    color: var(--text-muted);
-    text-transform: uppercase;
-  }
-
-  .controls {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-  }
-
-  button {
-    font-family: 'Space Grotesk', sans-serif;
-    font-weight: 600;
-    font-size: 12.5px;
-    letter-spacing: 0.05em;
-    text-transform: uppercase;
-    border-radius: 8px;
-    padding: 10px 16px;
-    cursor: pointer;
-    border: 1px solid var(--panel-border);
-    background: #0d1a1c;
-    color: var(--text);
-    transition: border-color 0.15s, color 0.15s, background 0.15s;
-  }
-
-  button:hover:not(:disabled) { border-color: var(--trace); color: var(--trace); }
-  button:focus-visible { outline: 2px solid var(--trace); outline-offset: 2px; }
-  button:disabled { opacity: 0.4; cursor: not-allowed; }
-
-  #connectBtn.is-connected {
-    border-color: var(--trace);
-    color: #04140d;
-    background: var(--trace);
-    box-shadow: 0 0 16px var(--trace-glow);
-  }
-
-  #demoBtn { background: transparent; color: var(--text-muted); font-size: 11.5px; }
-  #demoBtn.is-active { color: var(--warn); border-color: var(--warn); }
-
-  /* ---- status line ---- */
-  .statusline {
-    padding: 8px 22px;
-    font-size: 11.5px;
-    color: var(--text-dim);
-    border-bottom: 1px solid var(--panel-border);
-    min-height: 16px;
-  }
-  .statusline.warn { color: var(--warn); }
-  .statusline.err { color: var(--danger); }
-
-  /* ---- scope ---- */
-  .scope-wrap {
-    position: relative;
-    height: 320px;
-    background: var(--bg);
-  }
-  canvas#scope { display: block; width: 100%; height: 100%; }
-
-  .scope-overlay {
-    position: absolute;
-    inset: 0;
-    pointer-events: none;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    text-align: center;
-    color: var(--text-dim);
-    font-size: 13px;
-    line-height: 1.7;
-    padding: 0 30px;
-  }
-  .scope-overlay.hidden { display: none; }
-  .scope-overlay strong { color: var(--text-muted); font-family: 'Space Grotesk', sans-serif; }
-
-  /* ---- tiles ---- */
-  .tiles {
-    display: grid;
-    grid-template-columns: repeat(4, 1fr);
-    border-top: 1px solid var(--panel-border);
-  }
-  .tile {
-    padding: 14px 18px 16px;
-    border-right: 1px solid var(--panel-border);
-  }
-  .tile:last-child { border-right: none; }
-  .tile .label {
-    font-family: 'Space Grotesk', sans-serif;
-    font-size: 10.5px;
-    letter-spacing: 0.1em;
-    text-transform: uppercase;
-    color: var(--text-dim);
-    margin-bottom: 6px;
-  }
-  .tile .value {
-    font-size: 22px;
-    font-weight: 500;
-    color: var(--text);
-    display: flex;
-    align-items: baseline;
-    gap: 6px;
-  }
-  .tile .unit { font-size: 11px; color: var(--text-muted); }
-
-  .lead-dot {
-    width: 9px; height: 9px; border-radius: 50%;
-    background: var(--trace);
-    box-shadow: 0 0 8px var(--trace-glow);
-    display: inline-block;
-    margin-right: 7px;
-  }
-  .lead-dot.off {
-    background: var(--warn);
-    box-shadow: 0 0 8px var(--warn-glow);
-    animation: pulse 1s infinite;
-  }
-  @keyframes pulse { 0%,100%{opacity:1;} 50%{opacity:0.35;} }
-
-  footer {
-    padding: 12px 22px 16px;
-    font-size: 11px;
-    color: var(--text-dim);
-    border-top: 1px solid var(--panel-border);
-    display: flex;
-    justify-content: space-between;
-    gap: 12px;
-    flex-wrap: wrap;
-  }
-  footer a { color: var(--text-muted); text-decoration: none; border-bottom: 1px dotted var(--text-dim); }
-  footer a:hover { color: var(--trace); }
-
-  @media (max-width: 640px) {
-    .tiles { grid-template-columns: repeat(2, 1fr); }
-    .tile:nth-child(2) { border-right: none; }
-    .tile { border-bottom: 1px solid var(--panel-border); }
-    .scope-wrap { height: 240px; }
-  }
-
-  @media (prefers-reduced-motion: reduce) {
-    .lead-dot.off { animation: none; }
-  }
-</style>
-</head>
-<body>
-
-<div class="device">
-  <header>
-    <div class="brand">
-      <h1><span class="dot">●</span> ECG · RAW</h1>
-      <span class="eyebrow">Analog in · 250&nbsp;Hz · 115200&nbsp;baud</span>
-    </div>
-    <div class="controls">
-      <button id="demoBtn" type="button">Preview demo waveform</button>
-      <button id="connectBtn" type="button">⏻ Connect device</button>
-    </div>
-  </header>
-
-  <div id="statusline" class="statusline">Plug in the ESP32 over USB, then press Connect device and pick its serial port.</div>
-
-  <div class="scope-wrap">
-    <canvas id="scope"></canvas>
-    <div id="scopeOverlay" class="scope-overlay">
-      <div>No signal yet.<br><strong>Connect device</strong> or run the demo waveform to see the trace.</div>
-    </div>
-  </div>
-
-  <div class="tiles">
-    <div class="tile">
-      <div class="label">Raw value</div>
-      <div class="value"><span id="tileValue">—</span><span class="unit">/ 4095</span></div>
-    </div>
-    <div class="tile">
-      <div class="label">Heart Rate</div>
-      <div class="value">
-        <span id="tileBPM">0</span>
-        <span class="unit">BPM</span>
-      </div>
-    </div>
-    <div class="tile">
-      <div class="label">Lead status</div>
-      <div class="value"><span class="lead-dot" id="leadDot"></span><span id="tileLead">No data</span></div>
-    </div>
-    <div class="tile">
-      <div class="label">Samples received</div>
-      <div class="value"><span id="tileSamples">0</span></div>
-    </div>
-  </div>
-
-  <footer>
-    <span>Web Serial API requires Chrome or Edge on desktop.</span>
-    <span>Firmware: <code>firmware/ecg_raw/ecg_raw.ino</code></span>
-  </footer>
-</div>
-
-<script>
 (function () {
   const canvas = document.getElementById('scope');
   const ctx = canvas.getContext('2d');
@@ -285,7 +8,7 @@
   const tileValue = document.getElementById('tileValue');
   const tileBPM = document.getElementById('tileBPM');
   const tileLead = document.getElementById('tileLead');
-  const tileSamples = document.getElementById('tileSamples');
+  const tileAnomalies = document.getElementById('tileSamples');
   const leadDot = document.getElementById('leadDot');
 
   const GAP = 4;            // erase-gap width ahead of the sweep pen, in columns
@@ -293,8 +16,8 @@
 
   let dpr = window.devicePixelRatio || 1;
   let buf = null, bufferLen = 0, writeIdx = 0;
-  let totalSamples = 0, samplesSinceRateCheck = 0, currentRate = 0, lastRateCheck = performance.now();
   let leadOff = false, hasData = false;
+  let totalSamples = 0, samplesSinceRateCheck = 0, currentRate = 0, lastRateCheck = performance.now();
 
   let port = null, reader = null, readableStreamClosed = null, keepReading = false, connecting = false;
   let demoTimer = null, demoSampleIndex = 0;
@@ -325,7 +48,6 @@
     buf[writeIdx] = value;
     for (let g = 1; g <= GAP; g++) buf[(writeIdx + g) % bufferLen] = NaN;
     writeIdx = (writeIdx + 1) % bufferLen;
-    totalSamples++;
     samplesSinceRateCheck++;
   }
 
@@ -341,15 +63,6 @@
 
   function render() {
     requestAnimationFrame(render);
-
-    // sample-rate readout, refreshed once a second
-    const now = performance.now();
-    if (now - lastRateCheck >= 1000) {
-      currentRate = samplesSinceRateCheck / ((now - lastRateCheck) / 1000);
-      samplesSinceRateCheck = 0;
-      lastRateCheck = now;
-      tileSamples.textContent = totalSamples.toLocaleString();
-    }
 
     if (!buf) return;
     const w = canvas.width, h = canvas.height;
@@ -412,29 +125,28 @@
     pushSample(value);
   }
 
-  function handleLine(rawLine)
-{
+  function handleLine(rawLine) {
     const line = rawLine.trim();
 
     if (!line.includes(","))
-        return;
+      return;
 
     const parts = line.split(",");
 
-    if (parts.length < 4)
-        return;
+    if (parts.length < 5)
+      return;
 
     const filtered = parseFloat(parts[1]);
-
-    const bpm = parseFloat(parts[3]) / 10.0;
+    const bpm = parseFloat(parts[3]);
+    const anomalyText = parts[4].trim();
 
     if (Number.isNaN(filtered))
-        return;
+      return;
 
-    tileBPM.textContent = bpm.toFixed(0);
-
+    tileBPM.textContent = Number.isNaN(bpm) ? "--" : bpm.toFixed(0);
+    tileAnomalies.textContent = anomalyText ? anomalyText : "None";
     handleSample(filtered);
-}
+  }
 
   // ---------- Web Serial ----------
   async function connectSerial() {
@@ -570,6 +282,7 @@
     leadOff = false;
     leadDot.classList.remove('off');
     tileLead.textContent = 'Demo';
+    tileAnomalies.textContent = "Normal";
     const beatSamples = 250; // ~60 bpm at 250 Hz
     demoTimer = setInterval(() => {
       const phase = (demoSampleIndex % beatSamples) / beatSamples;
@@ -597,7 +310,3 @@
     setStatus('This browser does not support Web Serial. Open this page in Chrome or Edge on desktop — the demo waveform button still works anywhere.', 'warn');
   }
 })();
-</script>
-
-</body>
-</html>
