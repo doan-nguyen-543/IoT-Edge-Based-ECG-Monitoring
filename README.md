@@ -14,11 +14,9 @@ AD8232 ECG Sensor
         ▼
       ESP32
         │
- ┌──────────────┐
- │              │
- ▼              ▼
-OLED          Buzzer
-Display        Alert
+        │              
+        ▼
+      Web Dashboard
 
 ```
 
