@@ -2,7 +2,7 @@
 #define LO_PLUS   25
 #define LO_MINUS  26
 
-// === FILTER ===
+// FILTER
 float hp_prev_input = 0, hp_prev_output = 0, lp_prev = 0;
 #define MA_SIZE 8
 float maBuffer[MA_SIZE];
@@ -30,7 +30,7 @@ float movingAverage(float x) {
   return sum / MA_SIZE;
 }
 
-// === BPM SMOOTHING ===
+// BPM SMOOTHING
 #define BPM_BUF_SIZE 6
 float bpmBuffer[BPM_BUF_SIZE] = {0};
 int bpmIndex = 0;
@@ -43,7 +43,7 @@ float smoothBPM(float newBPM) {
   return sum / BPM_BUF_SIZE;
 }
 
-// === HEART RATE ===
+// HEART RATE
 float signalMax = 100;
 float threshold = 60;
 unsigned long lastPeakTime = 0;  // refractory
@@ -68,13 +68,13 @@ float CalculateBPM(float ecg) {
       }
     }
 
-    previousPeak = lastPeakTime; // ✅ Fix: lưu peak trước
-    lastPeakTime = now;          // ✅ Fix: cập nhật peak hiện tại
+    previousPeak = lastPeakTime; // lưu peak trước
+    lastPeakTime = now;          // cập nhật peak hiện tại
   }
   return bpm;
 }
 
-// === SETUP / LOOP ===
+// LOOP
 void setup() {
   Serial.begin(115200);
   pinMode(LO_PLUS, INPUT);
@@ -106,5 +106,5 @@ void loop() {
     Serial.println(status);
   }
 
-  delay(4); // ✅ 250 Hz
+  delay(4); // 250 Hz
 }
