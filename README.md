@@ -1,4 +1,4 @@
-# Edge-Based ECG Monitoring and Heart Abnormality Detection System Using AD8232 and ESP32
+# ECG Monitoring and Heart Abnormality Detection System Using AD8232 and ESP32
 
 ## Overview
 
@@ -16,7 +16,7 @@ AD8232 ECG Sensor
         │
         │              
         ▼
-      Web Dashboard
+  Web Dashboard
 
 ```
 
@@ -31,31 +31,6 @@ AD8232 ECG Sensor
 | Breadboard               | 2        |
 | Jumper Wires             | Several  |
 | USB Cable                | 1        |
-
----
-
-## Project Structure
-
-```text
-ECG-Monitor/
-├── data/
-│   ├── ecg_esp32.csv       <-Raw ECG samples collected from ESP32
-│   └── ecg_filtered.csv    <-Filtered ECG samples after signal processin
-│
-├── src/
-│   ├── main.py             <-Reads ECG data from ESP32, performs BPM calculation, exports processed data
-│   ├── plot.py             <-Displays raw ECG waveform
-│   └── plot0.py            <-Displays filtered ECG waveform and analysis results
-│
-├── images/
-│   ├── raw_ecg.png
-│   ├── filtered_ecg.png
-│   └── hardware_setup.jpg
-│
-├── requirements.txt
-│
-└── README.md
-```
 
 ---
 
